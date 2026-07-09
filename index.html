@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Numerador de PDF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg:#131318;
+    --bg-2:#18181f;
+    --panel:#1d1d26;
+    --panel-2:#23232e;
+    --line:#2d2d3a;
+    --line-soft:#26262f;
+    --ink:#eef0f5;
+    --ink-soft:#9a9aab;
+    --ink-faint:#6b6b7c;
+    --accent:#5b8cff;
+    --accent-ink:#ffffff;
+    --violet:#8b6bf0;
+    --teal:#22c1c3;
+    --amber:#f5a623;
+    --danger:#f2506b;
+    --ok:#34d399;
+    --mono:'SF Mono', 'Cascadia Code', ui-monospace, SFMono-Regular, Menlo, monospace;
+    --sans:'Segoe UI', -apple-system, BlinkMacSystemFont, 'Inter', Roboto, Arial, sans-serif;
+    --r:14px;
+    --r-sm:9px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:radial-gradient(1100px 600px at 15% -10%, #1b2036 0%, transparent 60%), var(--bg);color:var(--ink);font-family:var(--sans);}
+  .wrap{max-width:800px;margin:0 auto;padding:2.5rem 1.5rem 3.5rem;}
+
+  .masthead{padding-bottom:1.4rem;margin-bottom:1.6rem;display:flex;align-items:center;justify-content:space-between;gap:1.5rem;border-bottom:1px solid var(--line-soft);}
+  .masthead-text h1{font-size:1.5rem;font-weight:700;margin:0 0 4px;letter-spacing:-0.01em;}
+  .masthead-text .tag{font-size:0.82rem;color:var(--ink-soft);}
+  .badge{
+    flex-shrink:0;width:52px;height:52px;border-radius:15px;
+    background:linear-gradient(150deg,var(--accent),#3a5fd9);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 8px 20px -8px rgba(91,140,255,0.55);
+  }
+  .badge span{font-family:var(--mono);font-size:0.6rem;font-weight:700;color:#fff;letter-spacing:0.02em;text-align:center;line-height:1.2;}
+
+  .drop{border:1.5px dashed #3a3a4a;border-radius:var(--r);padding:2.4rem 1.5rem;text-align:center;cursor:pointer;background:var(--panel);transition:border-color .15s, background .15s, transform .1s;}
+  .drop:hover{border-color:var(--accent);background:var(--panel-2);}
+  .drop.drag{border-color:var(--accent);background:#20263d;transform:scale(1.005);}
+  .drop .big{font-size:0.98rem;margin:0 0 0.3rem;color:var(--ink);font-weight:600;}
+  .drop .small{font-size:0.8rem;color:var(--ink-soft);margin:0;}
+  input[type=file]{display:none;}
+
+  .parts{display:none;margin-top:1rem;}
+  .parts.show{display:block;}
+  .parts-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem;}
+  .parts-head .count{font-size:0.78rem;color:var(--ink-soft);font-weight:600;}
+  .parts-head button{background:none;border:1px solid var(--line);color:var(--ink-soft);border-radius:8px;font-size:0.75rem;padding:0.35rem 0.7rem;cursor:pointer;}
+  .parts-head button:hover{border-color:var(--danger);color:var(--danger);}
+  .part-row{display:flex;align-items:center;gap:0.7rem;padding:0.7rem 0.85rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--panel);margin-bottom:8px;}
+  .part-row .idx{font-family:var(--mono);font-size:0.72rem;color:var(--accent);font-weight:700;width:1.7rem;flex-shrink:0;background:rgba(91,140,255,0.12);border-radius:7px;text-align:center;padding:3px 0;}
+  .part-row .info{flex:1;min-width:0;}
+  .part-row .info .fn{font-size:0.87rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);}
+  .part-row .info .range{font-family:var(--mono);font-size:0.7rem;color:var(--ink-soft);margin-top:2px;}
+  .part-row .ctrl{display:flex;gap:5px;flex-shrink:0;}
+  .part-row .ctrl button{background:var(--panel-2);border:1px solid var(--line);color:var(--ink-soft);border-radius:7px;font-size:0.72rem;padding:0.3rem 0.55rem;cursor:pointer;line-height:1;}
+  .part-row .ctrl button:hover{border-color:var(--accent);color:var(--accent);}
+  .part-row .ctrl button.rm:hover{border-color:var(--danger);color:var(--danger);}
+  .add-more{font-size:0.8rem;font-weight:600;color:var(--accent);background:var(--panel);border:1.5px dashed var(--line);border-radius:var(--r-sm);padding:0.6rem 0.7rem;cursor:pointer;width:100%;text-align:center;margin-top:6px;}
+  .add-more:hover{border-color:var(--accent);background:var(--panel-2);}
+  .part-row.placeholder{border-style:dashed;border-color:var(--amber);background:rgba(245,166,35,0.06);}
+  .part-row.placeholder .idx{color:var(--amber);background:rgba(245,166,35,0.14);}
+  .part-row .swap-input{display:none;}
+  .reserve-form{display:none;gap:0.6rem;margin-top:6px;padding:0.85rem;border:1.5px dashed var(--amber);border-radius:var(--r-sm);background:rgba(245,166,35,0.06);align-items:end;}
+  .reserve-form.show{display:flex;}
+  .reserve-form .field{flex:1;margin-bottom:0;}
+  .reserve-form .field label{font-size:0.72rem;}
+  .reserve-form button{flex-shrink:0;height:38px;padding:0 1rem;font-size:0.78rem;font-weight:600;background:var(--amber);color:#1a1305;border:none;border-radius:8px;cursor:pointer;}
+  .dl-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:0.55rem 0;font-size:0.82rem;border-bottom:1px solid rgba(52,211,153,0.15);color:var(--ink);}
+  .dl-row a{color:var(--ok);font-weight:600;text-decoration:none;}
+  .dl-row a:hover{text-decoration:underline;}
+
+  fieldset{border:none;padding:0;margin:2rem 0 0;display:none;}
+  fieldset.show{display:block;}
+  .section-head{display:flex;align-items:center;gap:0.6rem;margin:0 0 1rem;padding:0;}
+  .section-head .ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.95rem;}
+  .section-head h2{font-size:0.95rem;font-weight:700;margin:0;color:var(--ink);}
+  .section-head.violet .ic{background:rgba(139,107,240,0.16);color:var(--violet);}
+  .section-head.teal .ic{background:rgba(34,193,195,0.16);color:var(--teal);}
+  .section-head.amber .ic{background:rgba(245,166,35,0.16);color:var(--amber);}
+
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;}
+  .field label{display:block;font-size:0.78rem;color:var(--ink-soft);margin-bottom:0.4rem;}
+  .field select, .field input[type=number], .field input[type=text]{width:100%;font-family:var(--sans);font-size:0.9rem;padding:0.55rem 0.65rem;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:9px;}
+  .field select:focus, .field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(91,140,255,0.18);}
+
+  .styletoggle{display:flex;gap:0.6rem;margin-bottom:1.5rem;}
+  .styletoggle button{
+    flex:1;text-align:left;padding:0.85rem 1rem;border:1px solid var(--line);border-radius:var(--r-sm);
+    background:var(--panel);cursor:pointer;font-family:var(--sans);transition:border-color .15s, background .15s;
+  }
+  .styletoggle button b{display:block;font-size:0.88rem;margin-bottom:2px;color:var(--ink);}
+  .styletoggle button span{display:block;font-size:0.74rem;color:var(--ink-soft);}
+  .styletoggle button.active{border-color:var(--violet);background:rgba(139,107,240,0.1);}
+  .styletoggle button.active b{color:var(--violet);}
+
+  .stamp-block{display:none;margin-bottom:1.5rem;}
+  .stamp-block.show{display:block;}
+  .stamp-layout{display:grid;grid-template-columns:1fr 160px;gap:1.5rem;align-items:start;}
+  .stamp-preview-box{border:1px solid var(--line);border-radius:var(--r-sm);background:#f7f5f0;display:flex;align-items:center;justify-content:center;padding:0.5rem;}
+
+  .posgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;max-width:220px;}
+  .posgrid button{aspect-ratio:1.4;border:1px solid var(--line);border-radius:8px;background:var(--panel);cursor:pointer;position:relative;}
+  .posgrid button::after{content:'';position:absolute;width:8px;height:8px;border-radius:50%;background:var(--ink-faint);top:50%;left:50%;transform:translate(-50%,-50%);}
+  .posgrid button.active{border-color:var(--teal);background:rgba(34,193,195,0.1);}
+  .posgrid button.active::after{background:var(--teal);}
+  .posgrid button[data-pos^="top"]::after{top:20%;}
+  .posgrid button[data-pos^="bottom"]::after{top:80%;}
+  .posgrid button[data-pos$="left"]::after{left:20%;}
+  .posgrid button[data-pos$="right"]::after{left:80%;}
+
+  .swatches{display:flex;gap:9px;}
+  .swatches button{width:28px;height:28px;border:1.5px solid var(--line);border-radius:50%;cursor:pointer;}
+  .swatches button.active{outline:2px solid var(--amber);outline-offset:2px;}
+
+  .checkline{display:flex;align-items:center;gap:0.55rem;font-size:0.85rem;color:var(--ink-soft);}
+  .checkline input{accent-color:var(--accent);width:16px;height:16px;}
+
+  .preview-note{font-size:0.8rem;color:var(--ink-soft);margin-top:1.5rem;padding-top:0.9rem;border-top:1px solid var(--line-soft);}
+  .preview-note b{color:var(--ink);font-weight:700;}
+
+  .actions{margin-top:1.6rem;display:flex;gap:0.9rem;align-items:center;flex-wrap:wrap;}
+  .go{font-family:var(--sans);font-size:0.85rem;font-weight:600;background:linear-gradient(150deg,var(--accent),#3a5fd9);color:#fff;border:none;border-radius:10px;padding:0.8rem 1.6rem;cursor:pointer;box-shadow:0 8px 20px -8px rgba(91,140,255,0.55);transition:transform .1s;}
+  .go:hover{transform:translateY(-1px);}
+  .go:disabled{background:var(--line);box-shadow:none;cursor:default;transform:none;}
+  .status{font-size:0.8rem;color:var(--ink-soft);}
+  .status.err{color:var(--danger);}
+  .status.ok{color:var(--ok);}
+
+  .dl{display:none;margin-top:1rem;padding:1rem 1.1rem;background:rgba(34,211,153,0.07);border:1px solid rgba(52,211,153,0.28);border-radius:var(--r-sm);}
+  .dl.show{display:block;}
+  footer{margin-top:2.5rem;padding-top:1.2rem;border-top:1px solid var(--line-soft);font-size:0.75rem;color:var(--ink-faint);line-height:1.7;}
+  @media (max-width:560px){.row{grid-template-columns:1fr;} .stamp-layout{grid-template-columns:1fr;} .styletoggle{flex-direction:column;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="masthead-text">
+      <h1>Numerador de PDF</h1>
+      <span class="tag">Carimbo de página · Processo administrativo</span>
+    </div>
+    <div class="badge"><span>Nº<br>PÁG</span></div>
+  </div>
+
+  <div class="drop" id="drop">
+    <p class="big">Solte aqui os PDFs do processo ou clique para escolher</p>
+    <p class="small">Pode selecionar vários de uma vez — cada um vira uma parte, numerada em sequência</p>
+  </div>
+  <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple>
+
+  <div class="parts" id="parts">
+    <div class="parts-head">
+      <span class="count" id="partsCount">0 partes · 0 páginas</span>
+      <button type="button" id="clearAllBtn">Limpar tudo</button>
+    </div>
+    <div id="partsList"></div>
+    <button type="button" class="add-more" id="addMoreBtn">+ Adicionar mais partes</button>
+    <button type="button" class="add-more" id="showReserveBtn">+ Reservar espaço p/ documento pendente</button>
+    <div class="reserve-form" id="reserveForm">
+      <div class="field">
+        <label for="reserveLabel">Nome do documento pendente</label>
+        <input type="text" id="reserveLabel" placeholder="Ex.: Relatório final de valor">
+      </div>
+      <div class="field" style="max-width:140px;">
+        <label for="reservePages">Nº de páginas (estimado)</label>
+        <input type="number" id="reservePages" value="1" min="1" step="1">
+      </div>
+      <button type="button" id="addReserveBtn">Adicionar reserva</button>
+    </div>
+  </div>
+
+  <fieldset id="opts">
+
+    <div class="section-head violet"><span class="ic">◎</span><h2>Estilo do carimbo</h2></div>
+    <div class="styletoggle" id="styletoggle">
+      <button type="button" data-style="simple" class="active">
+        <b>Texto simples</b>
+        <span>Só "Pag. 001" no canto</span>
+      </button>
+      <button type="button" data-style="oval">
+        <b>Carimbo oval completo</b>
+        <span>Igual ao da Prefeitura</span>
+      </button>
+    </div>
+
+    <div class="stamp-block" id="stampBlock">
+      <div class="stamp-layout">
+        <div>
+          <div class="row">
+            <div class="field">
+              <label for="ovalTop">Texto do arco superior</label>
+              <input type="text" id="ovalTop" value="PREFEITURA MUNICIPAL DE CRISTÓPOLIS">
+            </div>
+            <div class="field">
+              <label for="ovalBottom">Texto do arco inferior</label>
+              <input type="text" id="ovalBottom" value="SETOR DE LICITAÇÕES">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="ovalBahia">Texto de baixo (reto)</label>
+              <input type="text" id="ovalBahia" value="BAHIA">
+            </div>
+            <div class="field">
+              <label for="ovalRadius">Raio do carimbo (pt)</label>
+              <input type="number" id="ovalRadius" value="44" min="24" max="90" step="1">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="ovalBorder">Espessura da borda (pt)</label>
+              <input type="number" id="ovalBorder" value="2" min="0.5" max="4" step="0.1">
+            </div>
+            <div></div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="topScale">Tamanho do arco superior (%)</label>
+              <input type="number" id="topScale" value="100" min="50" max="160" step="5">
+            </div>
+            <div class="field">
+              <label for="bottomScale">Tamanho do arco inferior (%)</label>
+              <input type="number" id="bottomScale" value="100" min="50" max="160" step="5">
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="bahiaScale">Tamanho do texto de baixo (%)</label>
+              <input type="number" id="bahiaScale" value="100" min="50" max="200" step="5">
+            </div>
+            <div class="field">
+              <label for="centerScale">Tamanho do número central (%)</label>
+              <input type="number" id="centerScale" value="100" min="40" max="150" step="5">
+            </div>
+          </div>
+        </div>
+        <div class="stamp-preview-box">
+          <canvas id="stampPreview" width="150" height="150"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-head teal"><span class="ic">⛶</span><h2>Posição na página</h2></div>
+    <div class="posgrid" id="posgrid">
+      <button type="button" data-pos="top-left"></button>
+      <button type="button" data-pos="top-center"></button>
+      <button type="button" data-pos="top-right"></button>
+      <button type="button" data-pos="bottom-left"></button>
+      <button type="button" data-pos="bottom-center"></button>
+      <button type="button" data-pos="bottom-right" class="active"></button>
+    </div>
+
+    <div class="section-head amber" style="margin-top:1.5rem;"><span class="ic">#</span><h2>Formato e estilo do número</h2></div>
+    <div class="row">
+      <div class="field">
+        <label for="fmt">Formato do número</label>
+        <select id="fmt">
+          <option value="pag_n">Pág. 1, Pág. 2… (padrão do carimbo)</option>
+          <option value="n">1, 2, 3…</option>
+          <option value="pagina_n">Página 1, Página 2…</option>
+          <option value="n_de_total">1 de 12, 2 de 12…</option>
+          <option value="pagina_n_de_total">Página 1 de 12…</option>
+          <option value="n_slash_total">1/12, 2/12…</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="startAt">Começar a contar em</label>
+        <input type="number" id="startAt" value="1" min="1" step="1">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="fontSize">Tamanho da fonte (pt)</label>
+        <input type="number" id="fontSize" value="13" min="6" max="36" step="1">
+      </div>
+      <div class="field">
+        <label for="margin">Margem da borda (pt)</label>
+        <input type="number" id="margin" value="24" min="4" max="80" step="1">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label>Cor</label>
+        <div class="swatches" id="swatches">
+          <button type="button" data-color="#1c1b19" style="background:#1c1b19" class="active"></button>
+          <button type="button" data-color="#1f3a5f" style="background:#1f3a5f"></button>
+          <button type="button" data-color="#5c5951" style="background:#5c5951"></button>
+          <button type="button" data-color="#ffffff" style="background:#ffffff;border-color:#999"></button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="skip">Pular as primeiras páginas (só na 1ª parte)</label>
+        <input type="number" id="skip" value="0" min="0" step="1">
+      </div>
+    </div>
+    <div class="checkline" id="whiteBgRow">
+      <input type="checkbox" id="whiteBg">
+      <label for="whiteBg">Colocar um retângulo branco atrás do número (útil em páginas escuras)</label>
+    </div>
+    <div class="checkline" style="margin-top:0.6rem;">
+      <input type="checkbox" id="continuous" checked>
+      <label for="continuous">Numeração contínua entre as partes (a 2ª parte continua de onde a 1ª parou)</label>
+    </div>
+
+    <div class="actions" style="margin-top:1rem;">
+      <button class="go" id="saveDefaultBtn" type="button" style="background:var(--panel-2);color:var(--ink);border:1px solid var(--line);box-shadow:none;">Definir como padrão de impressão</button>
+      <span class="status" id="defaultStatus"></span>
+    </div>
+
+    <div class="row" style="margin-top:0.6rem;">
+      <div class="field">
+        <label for="zipName">Nome do arquivo .zip</label>
+        <input type="text" id="zipName" value="processo-numerado">
+      </div>
+      <div></div>
+    </div>
+
+    <div class="preview-note" id="previewNote"></div>
+
+    <div class="actions">
+      <button class="go" id="goBtn" type="button">Numerar todas as partes</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div class="dl" id="dlBox">
+      <div style="width:100%;">
+        <div id="dlList"></div>
+        <div class="actions" style="margin-top:0.75rem;">
+          <a id="zipLink" class="go" style="text-decoration:none;display:inline-block;" download>Baixar tudo (.zip) ↓</a>
+        </div>
+      </div>
+    </div>
+  </fieldset>
+
+  <footer>
+    Todo o processamento acontece no seu navegador — nenhum arquivo é enviado para servidor.
+  </footer>
+</div>
+
+<script>
+const { PDFDocument, rgb, StandardFonts, degrees } = PDFLib;
+
+let parts = []; // { id, name, bytes, pageCount }
+let partSeq = 0;
+let selectedPos = 'bottom-right';
+let selectedColor = '#1c1b19';
+let selectedStyle = 'simple';
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('fileInput');
+const partsBox = document.getElementById('parts');
+const partsList = document.getElementById('partsList');
+const partsCount = document.getElementById('partsCount');
+const clearAllBtn = document.getElementById('clearAllBtn');
+const addMoreBtn = document.getElementById('addMoreBtn');
+const showReserveBtn = document.getElementById('showReserveBtn');
+const reserveForm = document.getElementById('reserveForm');
+const reserveLabelEl = document.getElementById('reserveLabel');
+const reservePagesEl = document.getElementById('reservePages');
+const addReserveBtn = document.getElementById('addReserveBtn');
+const opts = document.getElementById('opts');
+const posgrid = document.getElementById('posgrid');
+const swatches = document.getElementById('swatches');
+const previewNote = document.getElementById('previewNote');
+const goBtn = document.getElementById('goBtn');
+const statusEl = document.getElementById('status');
+const dlBox = document.getElementById('dlBox');
+const dlList = document.getElementById('dlList');
+const zipLink = document.getElementById('zipLink');
+const styletoggle = document.getElementById('styletoggle');
+const stampBlock = document.getElementById('stampBlock');
+const whiteBgRow = document.getElementById('whiteBgRow');
+const continuousEl = document.getElementById('continuous');
+const zipNameEl = document.getElementById('zipName');
+const saveDefaultBtn = document.getElementById('saveDefaultBtn');
+const defaultStatusEl = document.getElementById('defaultStatus');
+
+const fmtEl = document.getElementById('fmt');
+const startAtEl = document.getElementById('startAt');
+const fontSizeEl = document.getElementById('fontSize');
+const marginEl = document.getElementById('margin');
+const skipEl = document.getElementById('skip');
+const whiteBgEl = document.getElementById('whiteBg');
+const ovalTopEl = document.getElementById('ovalTop');
+const ovalBottomEl = document.getElementById('ovalBottom');
+const ovalBahiaEl = document.getElementById('ovalBahia');
+const ovalRadiusEl = document.getElementById('ovalRadius');
+const ovalBorderEl = document.getElementById('ovalBorder');
+const topScaleEl = document.getElementById('topScale');
+const bottomScaleEl = document.getElementById('bottomScale');
+const bahiaScaleEl = document.getElementById('bahiaScale');
+const centerScaleEl = document.getElementById('centerScale');
+const stampCanvas = document.getElementById('stampPreview');
+
+showReserveBtn.addEventListener('click', () => {
+  reserveForm.classList.toggle('show');
+  if (reserveForm.classList.contains('show')) reserveLabelEl.focus();
+});
+
+async function makePlaceholderPdf(label, count) {
+  const doc = await PDFDocument.create();
+  const font = await doc.embedFont(StandardFonts.HelveticaBold);
+  const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
+  const pageW = 595.28, pageH = 841.89;
+  for (let i = 0; i < count; i++) {
+    const page = doc.addPage([pageW, pageH]);
+    const msg = 'AGUARDANDO DOCUMENTO';
+    const size = 28;
+    const w = font.widthOfTextAtSize(msg, size);
+    page.drawText(msg, {
+      x: pageW / 2 - w / 2, y: pageH / 2 + 10, size, font,
+      color: rgb(0.75, 0.73, 0.68), rotate: degrees(28)
+    });
+    const sub = label || 'documento pendente';
+    const subSize = 12;
+    const subW = italic.widthOfTextAtSize(sub, subSize);
+    page.drawText(sub, { x: pageW / 2 - subW / 2, y: pageH / 2 - 20, size: subSize, font: italic, color: rgb(0.6, 0.58, 0.53) });
+  }
+  return doc.save();
+}
+
+addReserveBtn.addEventListener('click', async () => {
+  const label = reserveLabelEl.value.trim();
+  const count = Math.max(1, parseInt(reservePagesEl.value || '1', 10));
+  const bytes = await makePlaceholderPdf(label, count);
+  parts.push({ id: ++partSeq, name: `[RESERVADO] ${label || 'documento pendente'}.pdf`, bytes, pageCount: count, placeholder: true });
+  reserveLabelEl.value = '';
+  reservePagesEl.value = '1';
+  reserveForm.classList.remove('show');
+  renderParts();
+});
+
+async function swapPlaceholder(id, file) {
+  const idx = parts.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  try {
+    const buf = await file.arrayBuffer();
+    const doc = await PDFDocument.load(buf, { ignoreEncryption: true });
+    parts[idx] = { id: parts[idx].id, name: file.name, bytes: buf, pageCount: doc.getPageCount() };
+    setStatus('');
+  } catch (err) {
+    setStatus(`Não consegui processar "${file.name}": ` + err.message, 'err');
+  }
+  renderParts();
+}
+
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('drag'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+drop.addEventListener('drop', e => {
+  e.preventDefault();
+  drop.classList.remove('drag');
+  if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFiles(e.target.files); fileInput.value = ''; });
+addMoreBtn.addEventListener('click', () => fileInput.click());
+clearAllBtn.addEventListener('click', () => {
+  parts = [];
+  renderParts();
+});
+
+async function handleFiles(fileList) {
+  for (const file of Array.from(fileList)) {
+    const lower = file.name.toLowerCase();
+    const isPdf = file.type === 'application/pdf' || lower.endsWith('.pdf');
+    if (!isPdf) {
+      setStatus(`"${file.name}" não é um PDF — ignorado.`, 'err');
+      continue;
+    }
+    try {
+      const buf = await file.arrayBuffer();
+      const doc = await PDFDocument.load(buf, { ignoreEncryption: true });
+      parts.push({ id: ++partSeq, name: file.name, bytes: buf, pageCount: doc.getPageCount() });
+    } catch (err) {
+      setStatus(`Não consegui processar "${file.name}": ` + err.message, 'err');
+    }
+  }
+  setStatus('');
+  renderParts();
+}
+
+function totalPages() {
+  return parts.reduce((sum, p) => sum + p.pageCount, 0);
+}
+
+function renderParts() {
+  const has = parts.length > 0;
+  partsBox.classList.toggle('show', has);
+  opts.classList.toggle('show', has);
+  dlBox.classList.remove('show');
+  if (!has) { partsList.innerHTML = ''; partsCount.textContent = '0 partes · 0 páginas'; return; }
+
+  const skip = Math.max(0, parseInt(skipEl.value || '0', 10));
+  const start = Math.max(1, parseInt(startAtEl.value || '1', 10));
+  const continuous = continuousEl.checked;
+  const fmt = fmtEl.value;
+  const total = continuous ? Math.max(0, totalPages() - skip) : null;
+
+  let counter = start;
+  partsList.innerHTML = parts.map((p, i) => {
+    const effectiveTotal = continuous ? total : Math.max(0, p.pageCount - (i === 0 ? skip : 0));
+    const firstIdx = i === 0 ? skip : 0;
+    const numberedInPart = Math.max(0, p.pageCount - firstIdx);
+    let rangeText = '—';
+    if (numberedInPart > 0) {
+      const firstLabel = formatLabel(counter, effectiveTotal, fmt);
+      const lastLabel = formatLabel(counter + numberedInPart - 1, effectiveTotal, fmt);
+      rangeText = `${firstLabel} – ${lastLabel}`;
+    }
+    if (continuous) counter += numberedInPart;
+    else counter = start;
+    const tag = p.placeholder
+      ? ' <span style="color:var(--ink-soft);font-family:var(--mono);font-size:0.68rem;">· RESERVA — substitua pelo arquivo real quando chegar</span>'
+      : '';
+    return `<div class="part-row${p.placeholder ? ' placeholder' : ''}" data-id="${p.id}">
+      <span class="idx">${i + 1}ª</span>
+      <div class="info">
+        <div class="fn">${escapeHtml(p.name)}${tag}</div>
+        <div class="range">${p.pageCount} página${p.pageCount === 1 ? '' : 's'} · ${rangeText}</div>
+      </div>
+      <div class="ctrl">
+        ${p.placeholder ? '<button type="button" data-act="swap" title="Substituir pelo arquivo real">Substituir</button>' : ''}
+        <input type="file" class="swap-input" data-swap-id="${p.id}" accept="application/pdf,.pdf">
+        <button type="button" data-act="up" ${i === 0 ? 'disabled' : ''} title="Mover pra cima">↑</button>
+        <button type="button" data-act="down" ${i === parts.length - 1 ? 'disabled' : ''} title="Mover pra baixo">↓</button>
+        <button type="button" data-act="rm" class="rm" title="Remover">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  partsCount.textContent = `${parts.length} parte${parts.length === 1 ? '' : 's'} · ${totalPages()} página${totalPages() === 1 ? '' : 's'} no total`;
+
+  partsList.querySelectorAll('.part-row').forEach(row => {
+    const id = parseInt(row.dataset.id, 10);
+    const swapInput = row.querySelector('.swap-input');
+    if (swapInput) {
+      swapInput.addEventListener('change', e => {
+        if (e.target.files.length) swapPlaceholder(id, e.target.files[0]);
+      });
+    }
+    row.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parts.findIndex(p => p.id === id);
+        const act = btn.dataset.act;
+        if (act === 'rm') parts.splice(idx, 1);
+        else if (act === 'up' && idx > 0) [parts[idx - 1], parts[idx]] = [parts[idx], parts[idx - 1]];
+        else if (act === 'down' && idx < parts.length - 1) [parts[idx + 1], parts[idx]] = [parts[idx], parts[idx + 1]];
+        else if (act === 'swap') { swapInput.value = ''; swapInput.click(); return; }
+        renderParts();
+      });
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+posgrid.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    posgrid.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedPos = btn.dataset.pos;
+  });
+});
+
+swatches.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    swatches.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedColor = btn.dataset.color;
+    drawStampPreview();
+  });
+});
+
+styletoggle.querySelectorAll('button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    styletoggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedStyle = btn.dataset.style;
+    stampBlock.classList.toggle('show', selectedStyle === 'oval');
+    whiteBgRow.style.display = selectedStyle === 'oval' ? 'none' : 'flex';
+    if (selectedStyle === 'oval') drawStampPreview();
+  });
+});
+
+[fmtEl, startAtEl, skipEl, continuousEl].forEach(el => el.addEventListener('input', renderParts));
+[ovalTopEl, ovalBottomEl, ovalBahiaEl, ovalRadiusEl, ovalBorderEl, topScaleEl, bottomScaleEl, bahiaScaleEl, centerScaleEl, fmtEl, fontSizeEl].forEach(el => el.addEventListener('input', drawStampPreview));
+
+function formatLabel(n, total, fmt) {
+  const padLen = Math.max(3, String(total || n).length);
+  switch (fmt) {
+    case 'pagina_n': return `Página ${n}`;
+    case 'pag_n': return `Pag. ${String(n).padStart(padLen,'0')}`;
+    case 'n_de_total': return `${n} de ${total}`;
+    case 'pagina_n_de_total': return `Página ${n} de ${total}`;
+    case 'n_slash_total': return `${n}/${total}`;
+    default: return `${n}`;
+  }
+}
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg;
+  statusEl.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+// ---------- curved-text geometry (shared logic, canvas version for live preview) ----------
+function drawArcTextCanvas(ctx, text, cx, cy, radius, fontStr, color, centerAngleDeg, outward) {
+  ctx.font = fontStr;
+  const sizeMatch = /([\d.]+)px/.exec(fontStr);
+  const size = sizeMatch ? parseFloat(sizeMatch[1]) : 10;
+  const chars = Array.from(text);
+  const widths = chars.map(c => ctx.measureText(c).width);
+  const angularWidths = widths.map(w => w / radius);
+  const totalAngular = angularWidths.reduce((a, b) => a + b, 0);
+  const dir = outward ? 1 : -1;
+  const centerAngle = (centerAngleDeg * Math.PI) / 180;
+  let running = centerAngle - dir * (totalAngular / 2);
+
+  ctx.fillStyle = color;
+  for (let i = 0; i < chars.length; i++) {
+    const thetaCenter = running + dir * (angularWidths[i] / 2);
+    running += dir * angularWidths[i];
+    const x = cx + radius * Math.sin(thetaCenter);
+    const y = cy - radius * Math.cos(thetaCenter);
+    const beta = outward ? thetaCenter : thetaCenter + Math.PI;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(beta);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(chars[i], 0, 0);
+    ctx.restore();
+  }
+}
+
+function measureTextWidthCanvas(ctx, text, fontFamily, sizeRef) {
+  ctx.font = `bold ${sizeRef}px ${fontFamily}`;
+  let w = 0;
+  for (const c of text) w += ctx.measureText(c).width;
+  return w;
+}
+
+function fitSizeForArcCanvas(ctx, text, fontFamily, radius, spanDeg, maxSize) {
+  const spanRad = (spanDeg * Math.PI) / 180;
+  const arcLen = radius * spanRad;
+  const refSize = 20;
+  const widthAtRef = measureTextWidthCanvas(ctx, text, fontFamily, refSize);
+  const size = (arcLen / widthAtRef) * refSize;
+  return Math.min(size, maxSize);
+}
+
+function drawStampPreview() {
+  if (selectedStyle !== 'oval') return;
+  const ctx = stampCanvas.getContext('2d');
+  const W = stampCanvas.width, H = stampCanvas.height;
+  ctx.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2;
+  const radius = Math.min(W, H) / 2 - 14;
+  const border = Math.max(0.5, parseFloat(ovalBorderEl.value || '1.3'));
+
+  ctx.strokeStyle = selectedColor;
+  ctx.lineWidth = border;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, radius, radius, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const topText = (ovalTopEl.value || '').toUpperCase();
+  const bottomText = (ovalBottomEl.value || '').toUpperCase();
+  const textRadius = radius - 9;
+  const tScale = Math.min(160, Math.max(50, parseFloat(topScaleEl.value || '100'))) / 100;
+  const bScale = Math.min(160, Math.max(50, parseFloat(bottomScaleEl.value || '100'))) / 100;
+  const topSpan = Math.min(170, 150 * tScale);
+  const topSize = topText ? fitSizeForArcCanvas(ctx, topText, "'Times New Roman'", textRadius, topSpan, radius * 0.22 * tScale) : 8;
+  const bottomSize = bottomText ? fitSizeForArcCanvas(ctx, bottomText, "'Times New Roman'", textRadius, Math.min(130, 110 * bScale), radius * 0.24 * bScale) : 8;
+
+  if (topText) drawArcTextCanvas(ctx, topText, cx, cy, textRadius, `bold ${topSize}px 'Times New Roman'`, selectedColor, 0, true);
+  if (bottomText) drawArcTextCanvas(ctx, bottomText, cx, cy, textRadius, `bold ${bottomSize}px 'Times New Roman'`, selectedColor, 180, false);
+
+  const label = formatLabel(parseInt(startAtEl.value || '1', 10), totalPages() || 1, fmtEl.value);
+  const centerScale = Math.min(150, Math.max(40, parseFloat(centerScaleEl.value || '100'))) / 100;
+  ctx.fillStyle = selectedColor;
+  ctx.font = `bold ${13 * centerScale}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, cx, cy);
+
+  const bahiaText = (ovalBahiaEl.value || '').toUpperCase();
+  if (bahiaText) {
+    const bhScale = Math.min(200, Math.max(50, parseFloat(bahiaScaleEl.value || '100'))) / 100;
+    ctx.font = `bold ${8 * bhScale}px Arial`;
+    ctx.fillText(bahiaText, cx, cy + radius * 0.5);
+  }
+}
+
+// ---------- save/restore default print settings ----------
+function currentSettings() {
+  return {
+    style: selectedStyle, pos: selectedPos, color: selectedColor,
+    fmt: fmtEl.value, startAt: startAtEl.value, fontSize: fontSizeEl.value,
+    margin: marginEl.value, skip: skipEl.value, whiteBg: whiteBgEl.checked,
+    continuous: continuousEl.checked, zipName: zipNameEl.value,
+    ovalTop: ovalTopEl.value, ovalBottom: ovalBottomEl.value, ovalBahia: ovalBahiaEl.value,
+    ovalRadius: ovalRadiusEl.value, ovalBorder: ovalBorderEl.value,
+    topScale: topScaleEl.value, bottomScale: bottomScaleEl.value,
+    bahiaScale: bahiaScaleEl.value, centerScale: centerScaleEl.value
+  };
+}
+
+saveDefaultBtn.addEventListener('click', async () => {
+  const json = JSON.stringify(currentSettings());
+  try {
+    if (window.storage) {
+      await window.storage.set('default-print-settings', json, false);
+    } else {
+      localStorage.setItem('numerador-pdf-default-settings', json);
+    }
+    defaultStatusEl.textContent = 'Padrão salvo ✓';
+    defaultStatusEl.className = 'status ok';
+  } catch (err) {
+    try {
+      localStorage.setItem('numerador-pdf-default-settings', json);
+      defaultStatusEl.textContent = 'Padrão salvo ✓';
+      defaultStatusEl.className = 'status ok';
+    } catch (err2) {
+      defaultStatusEl.textContent = 'Não consegui salvar: ' + err2.message;
+      defaultStatusEl.className = 'status err';
+    }
+  }
+});
+
+async function loadDefaultSettings() {
+  let raw = null;
+  try {
+    if (window.storage) {
+      const res = await window.storage.get('default-print-settings', false);
+      if (res && res.value) raw = res.value;
+    }
+  } catch (err) { /* no saved default via window.storage, try localStorage next */ }
+  if (!raw) {
+    try { raw = localStorage.getItem('numerador-pdf-default-settings'); } catch (err) { return; }
+  }
+  if (!raw) return;
+
+  try {
+    const s = JSON.parse(raw);
+
+    if (s.style) {
+      selectedStyle = s.style;
+      styletoggle.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.style === s.style));
+      stampBlock.classList.toggle('show', s.style === 'oval');
+      whiteBgRow.style.display = s.style === 'oval' ? 'none' : 'flex';
+    }
+    if (s.pos) {
+      selectedPos = s.pos;
+      posgrid.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.pos === s.pos));
+    }
+    if (s.color) {
+      selectedColor = s.color;
+      swatches.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.color === s.color));
+    }
+    if (s.fmt) fmtEl.value = s.fmt;
+    if (s.startAt) startAtEl.value = s.startAt;
+    if (s.fontSize) fontSizeEl.value = s.fontSize;
+    if (s.margin) marginEl.value = s.margin;
+    if (s.skip !== undefined) skipEl.value = s.skip;
+    if (s.whiteBg !== undefined) whiteBgEl.checked = s.whiteBg;
+    if (s.continuous !== undefined) continuousEl.checked = s.continuous;
+    if (s.zipName) zipNameEl.value = s.zipName;
+    if (s.ovalTop !== undefined) ovalTopEl.value = s.ovalTop;
+    if (s.ovalBottom !== undefined) ovalBottomEl.value = s.ovalBottom;
+    if (s.ovalBahia !== undefined) ovalBahiaEl.value = s.ovalBahia;
+    if (s.ovalRadius) ovalRadiusEl.value = s.ovalRadius;
+    if (s.ovalBorder) ovalBorderEl.value = s.ovalBorder;
+    if (s.topScale) topScaleEl.value = s.topScale;
+    if (s.bottomScale) bottomScaleEl.value = s.bottomScale;
+    if (s.bahiaScale) bahiaScaleEl.value = s.bahiaScale;
+    if (s.centerScale) centerScaleEl.value = s.centerScale;
+
+    drawStampPreview();
+  } catch (err) {
+    // no saved default yet, or storage unavailable — ignore silently
+  }
+}
+loadDefaultSettings();
+
+// initial preview (works even before a file is loaded)
+drawStampPreview();
+
+// ---------- pdf-lib version used for the real export ----------
+function drawArcTextPdf(page, font, text, opts) {
+  const { cx, cy, radius, size, color, centerAngleDeg, outward } = opts;
+  const chars = Array.from(text);
+  const widths = chars.map(c => font.widthOfTextAtSize(c, size));
+  const angularWidths = widths.map(w => w / radius);
+  const totalAngular = angularWidths.reduce((a, b) => a + b, 0);
+  const dir = outward ? 1 : -1;
+  const centerAngle = (centerAngleDeg * Math.PI) / 180;
+  let running = centerAngle - dir * (totalAngular / 2);
+
+  for (let i = 0; i < chars.length; i++) {
+    const thetaCenter = running + dir * (angularWidths[i] / 2);
+    running += dir * angularWidths[i];
+    const x = cx + radius * Math.sin(thetaCenter);
+    const y = cy + radius * Math.cos(thetaCenter);
+    const phi = outward ? -thetaCenter : -thetaCenter + Math.PI;
+    const cosPhi = Math.cos(phi), sinPhi = Math.sin(phi);
+    const w = widths[i];
+    let ax = x - (w / 2) * cosPhi;
+    let ay = y - (w / 2) * sinPhi;
+    const vOffset = size * 0.32;
+    ax -= vOffset * -sinPhi;
+    ay -= vOffset * cosPhi;
+    page.drawText(chars[i], { x: ax, y: ay, size, font, color, rotate: degrees((phi * 180) / Math.PI) });
+  }
+}
+
+function fitSizeForArcPdf(font, text, radius, spanDeg, maxSize) {
+  const spanRad = (spanDeg * Math.PI) / 180;
+  const arcLen = radius * spanRad;
+  const widthAt10 = font.widthOfTextAtSize(text, 10);
+  const size = (arcLen / widthAt10) * 10;
+  return Math.min(size, maxSize);
+}
+
+function hexToRgb(hex) {
+  const v = hex.replace('#', '');
+  return {
+    r: parseInt(v.substring(0, 2), 16) / 255,
+    g: parseInt(v.substring(2, 4), 16) / 255,
+    b: parseInt(v.substring(4, 6), 16) / 255
+  };
+}
+
+function computePosition(pos, pageW, pageH, boxW, boxH, margin) {
+  let x, y;
+  if (pos.endsWith('left')) x = margin;
+  else if (pos.endsWith('right')) x = pageW - margin - boxW;
+  else x = (pageW - boxW) / 2;
+  if (pos.startsWith('top')) y = pageH - margin - boxH;
+  else y = margin;
+  return { x, y };
+}
+
+async function stampDoc(doc, font, arcFont, pageIndices, startCounter, total, opts) {
+  const { fmt, color, rgbColor, style, posName, margin, fontSize, whiteBg,
+          ovalRadius, ovalBorder, topText, bottomText, bahiaText,
+          tScale, bScale, bhScale, centerScale } = opts;
+  let counter = startCounter;
+  const pages = doc.getPages();
+  for (const i of pageIndices) {
+    const page = pages[i];
+    const { width, height } = page.getSize();
+    const label = formatLabel(counter, total, fmt);
+
+    if (style === 'oval') {
+      const boxSize = ovalRadius * 2;
+      const { x, y } = computePosition(posName, width, height, boxSize, boxSize, margin);
+      const cx = x + ovalRadius, cy = y + ovalRadius;
+      page.drawEllipse({ x: cx, y: cy, xScale: ovalRadius, yScale: ovalRadius, borderColor: rgbColor, borderWidth: ovalBorder });
+
+      const textRadius = ovalRadius - ovalRadius * 0.22;
+      const topSpan = Math.min(170, 150 * tScale);
+      const bottomSpan = Math.min(130, 110 * bScale);
+      const topSize = topText ? fitSizeForArcPdf(arcFont, topText, textRadius, topSpan, ovalRadius * 0.22 * tScale) : 0;
+      const bottomSize = bottomText ? fitSizeForArcPdf(arcFont, bottomText, textRadius, bottomSpan, ovalRadius * 0.24 * bScale) : 0;
+      if (topText) drawArcTextPdf(page, arcFont, topText, { cx, cy, radius: textRadius, size: topSize, color: rgbColor, centerAngleDeg: 0, outward: true });
+      if (bottomText) drawArcTextPdf(page, arcFont, bottomText, { cx, cy, radius: textRadius, size: bottomSize, color: rgbColor, centerAngleDeg: 180, outward: false });
+
+      const centerSize = ovalRadius * 0.32 * centerScale;
+      const labelWidth = font.widthOfTextAtSize(label, centerSize);
+      page.drawText(label, { x: cx - labelWidth / 2, y: cy - centerSize * 0.35, size: centerSize, font, color: rgbColor });
+
+      if (bahiaText) {
+        const bahiaSize = ovalRadius * 0.16 * bhScale;
+        const bahiaWidth = font.widthOfTextAtSize(bahiaText, bahiaSize);
+        page.drawText(bahiaText, { x: cx - bahiaWidth / 2, y: cy - ovalRadius * 0.5, size: bahiaSize, font, color: rgbColor });
+      }
+    } else {
+      const textWidth = font.widthOfTextAtSize(label, fontSize);
+      const textHeight = font.heightAtSize(fontSize);
+      const { x, y } = computePosition(posName, width, height, textWidth, textHeight, margin);
+      if (whiteBg) {
+        const pad = 3;
+        page.drawRectangle({ x: x - pad, y: y - pad, width: textWidth + pad * 2, height: textHeight + pad * 2, color: rgb(1, 1, 1), opacity: 0.85 });
+      }
+      page.drawText(label, { x, y, size: fontSize, font, color: rgbColor });
+    }
+    counter++;
+  }
+  return counter;
+}
+
+goBtn.addEventListener('click', async () => {
+  if (!parts.length) return;
+  const pendingReserves = parts.filter(p => p.placeholder).length;
+  if (pendingReserves > 0) {
+    setStatus(`Atenção: ${pendingReserves} reserva(s) ainda sem o arquivo real — gerando mesmo assim com as páginas de "aguardando documento".`, 'err');
+  }
+  goBtn.disabled = true;
+  dlBox.classList.remove('show');
+
+  const skip = Math.max(0, parseInt(skipEl.value || '0', 10));
+  const start = Math.max(1, parseInt(startAtEl.value || '1', 10));
+  const fontSize = Math.max(6, parseInt(fontSizeEl.value || '13', 10));
+  const margin = Math.max(4, parseInt(marginEl.value || '24', 10));
+  const fmt = fmtEl.value;
+  const continuous = continuousEl.checked;
+  const color = hexToRgb(selectedColor);
+  const rgbColor = rgb(color.r, color.g, color.b);
+  const whiteBg = whiteBgEl.checked;
+
+  const ovalRadius = Math.max(24, parseInt(ovalRadiusEl.value || '44', 10));
+  const ovalBorder = Math.max(0.5, parseFloat(ovalBorderEl.value || '2'));
+  const topText = (ovalTopEl.value || '').toUpperCase();
+  const bottomText = (ovalBottomEl.value || '').toUpperCase();
+  const bahiaText = (ovalBahiaEl.value || '').toUpperCase();
+  const tScale = Math.min(160, Math.max(50, parseFloat(topScaleEl.value || '100'))) / 100;
+  const bScale = Math.min(160, Math.max(50, parseFloat(bottomScaleEl.value || '100'))) / 100;
+  const bhScale = Math.min(200, Math.max(50, parseFloat(bahiaScaleEl.value || '100'))) / 100;
+  const centerScale = Math.min(150, Math.max(40, parseFloat(centerScaleEl.value || '100'))) / 100;
+
+  const grandTotal = continuous ? Math.max(0, totalPages() - skip) : null;
+  const results = [];
+
+  try {
+    let counter = start;
+    for (let p = 0; p < parts.length; p++) {
+      setStatus(`Numerando parte ${p + 1} de ${parts.length}…`);
+      const part = parts[p];
+      const doc = await PDFDocument.load(part.bytes, { ignoreEncryption: true });
+      const font = await doc.embedFont(StandardFonts.HelveticaBold);
+      const arcFont = await doc.embedFont(StandardFonts.TimesRomanBold);
+
+      const firstIdx = p === 0 ? skip : 0;
+      const pageIndices = [];
+      for (let i = firstIdx; i < part.pageCount; i++) pageIndices.push(i);
+
+      const partTotal = continuous ? grandTotal : Math.max(0, part.pageCount - firstIdx);
+      const startCounter = continuous ? counter : start;
+
+      const nextCounter = await stampDoc(doc, font, arcFont, pageIndices, startCounter, partTotal, {
+        fmt, color, rgbColor, style: selectedStyle, posName: selectedPos, margin, fontSize, whiteBg,
+        ovalRadius, ovalBorder, topText, bottomText, bahiaText, tScale, bScale, bhScale, centerScale
+      });
+      if (continuous) counter = nextCounter;
+
+      const outBytes = await doc.save();
+      const outName = part.name.replace(/\.pdf$/i, '') + '-numerado.pdf';
+      results.push({ name: outName, bytes: outBytes, pages: pageIndices.length });
+    }
+
+    setStatus('Compactando em .zip…');
+    const zip = new JSZip();
+    for (const r of results) zip.file(r.name, r.bytes);
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const zipUrl = URL.createObjectURL(zipBlob);
+    let zipName = (zipNameEl.value || '').trim().replace(/\.zip$/i, '').replace(/[\\/:*?"<>|]/g, '-');
+    if (!zipName) zipName = 'processo-numerado';
+    zipLink.href = zipUrl;
+    zipLink.setAttribute('download', zipName + '.zip');
+
+    dlList.innerHTML = results.map(r => {
+      const url = URL.createObjectURL(new Blob([r.bytes], { type: 'application/pdf' }));
+      return `<div class="dl-row"><span>${escapeHtml(r.name)} · ${r.pages} pág.</span><a href="${url}" download="${escapeHtml(r.name)}">Baixar ↓</a></div>`;
+    }).join('');
+    dlBox.classList.add('show');
+
+    const totalStamped = results.reduce((s, r) => s + r.pages, 0);
+    setStatus(`Pronto — ${parts.length} parte${parts.length === 1 ? '' : 's'}, ${totalStamped} página${totalStamped === 1 ? '' : 's'} numerada${totalStamped === 1 ? '' : 's'}.`, 'ok');
+  } catch (err) {
+    setStatus('Erro ao numerar: ' + err.message, 'err');
+  } finally {
+    goBtn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
