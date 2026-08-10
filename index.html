@@ -339,6 +339,7 @@
         <div id="dlList"></div>
         <div class="actions" style="margin-top:0.75rem;">
           <a id="zipLink" class="go" style="text-decoration:none;display:inline-block;" download>Baixar tudo (.zip) ↓</a>
+          <a id="mergedLink" class="go" style="text-decoration:none;display:inline-block;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);box-shadow:none;" download>Baixar PDF único ↓</a>
         </div>
       </div>
     </div>
@@ -379,6 +380,7 @@ const statusEl = document.getElementById('status');
 const dlBox = document.getElementById('dlBox');
 const dlList = document.getElementById('dlList');
 const zipLink = document.getElementById('zipLink');
+const mergedLink = document.getElementById('mergedLink');
 const styletoggle = document.getElementById('styletoggle');
 const stampBlock = document.getElementById('stampBlock');
 const whiteBgRow = document.getElementById('whiteBgRow');
@@ -971,6 +973,18 @@ goBtn.addEventListener('click', async () => {
     if (!zipName) zipName = 'processo-numerado';
     zipLink.href = zipUrl;
     zipLink.setAttribute('download', zipName + '.zip');
+
+    setStatus('Juntando tudo em um PDF único…');
+    const mergedDoc = await PDFDocument.create();
+    for (const r of results) {
+      const src = await PDFDocument.load(r.bytes);
+      const copied = await mergedDoc.copyPages(src, src.getPageIndices());
+      copied.forEach(pg => mergedDoc.addPage(pg));
+    }
+    const mergedBytes = await mergedDoc.save();
+    const mergedUrl = URL.createObjectURL(new Blob([mergedBytes], { type: 'application/pdf' }));
+    mergedLink.href = mergedUrl;
+    mergedLink.setAttribute('download', zipName + '-unico.pdf');
 
     dlList.innerHTML = results.map(r => {
       const url = URL.createObjectURL(new Blob([r.bytes], { type: 'application/pdf' }));
